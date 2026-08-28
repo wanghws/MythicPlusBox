@@ -1,4 +1,4 @@
-## Interface: 120000, 120005, 120007
+## Interface: 120000, 120005, 120007, 120100
 ## Title: MythicPlusBox
 ## Notes: All-in-one Mythic+ HUD: dungeon overlays, weekly best, teleport, party keystone tracker.
 ## Notes-zhCN: 大秘境一站式面板:副本得分、每周最佳、传送、队伍钥石追踪。
