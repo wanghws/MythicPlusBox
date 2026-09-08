@@ -14,35 +14,22 @@ local function BuildSpellToMap()
     end
 end
 
-local function SelectBestSpellID(spellIDs)
-    for _, spellID in ipairs(spellIDs) do
-        if IsSpellKnown(spellID) then return spellID end
-    end
-    return spellIDs[1]
-end
-
--- Each OnEnter bumps the serial so only the newest refresh chain keeps
+-- Each new hover bumps the serial so only the newest refresh chain keeps
 -- rescheduling; stale chains from earlier hovers die off instead of stacking
 -- concurrent C_Timer loops against the same tooltip.
 local tooltipSerial = 0
 
-local function UpdateTooltip(parent, spellID, initialize, serial)
+local function DrawTeleportTooltip(owner, spellID, header, serial, initial)
     if M.isLoadingScreen then return end
-    local L = ns.L
-    if initialize then
-        tooltipSerial = tooltipSerial + 1
-        serial = tooltipSerial
-    elseif serial ~= tooltipSerial or not GameTooltip:IsOwned(parent) then
+    if not initial and (serial ~= tooltipSerial or not GameTooltip:IsOwned(owner)) then
         return
     end
-    local onEnter = parent:GetScript("OnEnter")
-    if onEnter then onEnter(parent) end
+    local L = ns.L
+    header(owner)
 
-    local name = C_Spell.GetSpellName(spellID)
     GameTooltip:AddLine(" ")
-
+    GameTooltip:AddLine(C_Spell.GetSpellName(spellID) or L["TELEPORT_TOOLTIP_TITLE"])
     if IsSpellKnown(spellID) then
-        GameTooltip:AddLine(name or L["TELEPORT_TOOLTIP_TITLE"])
         local cd = C_Spell.GetSpellCooldown(spellID)
         if not cd or not cd.startTime or not cd.duration then
             GameTooltip:AddLine(L["TELEPORT_UNKNOWN_COOLDOWN"], 1, 0, 0)
@@ -52,18 +39,39 @@ local function UpdateTooltip(parent, spellID, initialize, serial)
             GameTooltip:AddLine(SecondsToTime(math.ceil(cd.startTime + cd.duration - GetTime())), 1, 0, 0)
         end
     else
-        GameTooltip:AddLine(name or L["TELEPORT_TOOLTIP_TITLE"])
         GameTooltip:AddLine(L["TELEPORT_NOT_LEARNED"], 1, 0, 0)
     end
     GameTooltip:Show()
 
-    C_Timer.After(1, function() UpdateTooltip(parent, spellID, false, serial) end)
+    C_Timer.After(1, function()
+        DrawTeleportTooltip(owner, spellID, header, serial, false)
+    end)
 end
 
-local function CreateDungeonButton(icon, spellIDs)
-    if not spellIDs then return end
+--- Opens a self-refreshing teleport tooltip (spell name + live cooldown) on
+--- `owner`. `header` is handed the owner frame and must open GameTooltip on it,
+--- either by replaying the frame's own OnEnter or by calling SetOwner itself.
+function ns:ShowTeleportTooltip(owner, spellID, header)
+    if not owner or not spellID then return end
+    tooltipSerial = tooltipSerial + 1
+    DrawTeleportTooltip(owner, spellID, header, tooltipSerial, true)
+end
+
+function ns:HideTeleportTooltip(owner)
+    tooltipSerial = tooltipSerial + 1
+    if owner and GameTooltip:IsOwned(owner) then GameTooltip:Hide() end
+end
+
+--- Header for frames that already own a tooltip of their own (Blizzard dungeon
+--- icons): replay their OnEnter so our lines append to the native tooltip.
+local function ReplayOwnerTooltip(owner)
+    local onEnter = owner:GetScript("OnEnter")
+    if onEnter then onEnter(owner) end
+end
+
+local function CreateDungeonButton(icon, mapID)
     if InCombatLockdown() then return end
-    local spellID = SelectBestSpellID(spellIDs)
+    local spellID = ns:GetTeleportSpell(mapID)
     if not spellID then return end
 
     local button = icon.__MPBoxTeleport
@@ -80,10 +88,8 @@ local function CreateDungeonButton(icon, spellIDs)
     button:RegisterForClicks(GetCVarBool("ActionButtonUseKeyDown") and "AnyDown" or "AnyUp")
     button:SetAttribute("type", "spell")
     button:SetAttribute("spell", spellID)
-    button:SetScript("OnEnter", function() UpdateTooltip(icon, spellID, true) end)
-    button:SetScript("OnLeave", function()
-        if GameTooltip:IsOwned(icon) then GameTooltip:Hide() end
-    end)
+    button:SetScript("OnEnter", function() ns:ShowTeleportTooltip(icon, spellID, ReplayOwnerTooltip) end)
+    button:SetScript("OnLeave", function() ns:HideTeleportTooltip(icon) end)
 end
 
 local function CreateAll()
@@ -91,7 +97,7 @@ local function CreateAll()
     if not ChallengesFrame or not ChallengesFrame.DungeonIcons then return end
     if not ns.db.profile.teleport.enabled then return end
     for _, dungeonIcon in ipairs(ChallengesFrame.DungeonIcons) do
-        CreateDungeonButton(dungeonIcon, ns.DungeonTeleport[dungeonIcon.mapID])
+        CreateDungeonButton(dungeonIcon, dungeonIcon.mapID)
     end
 end
 

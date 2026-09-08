@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.0
+
+- Party keystone list rows are now click-to-teleport: clicking a row casts that
+  dungeon's teleport, with a tooltip showing the spell and its live cooldown.
+  Also fixes the Skyreach teleport showing as unlearned, duplicated teleport
+  announcements, and the English client falling back to a Chinese announce
+  template; dungeon data updated for Midnight Season 2.
+- 队伍钥石列表支持点击传送:点击列表中的任意条目即可施放该副本的传送法术,
+  鼠标悬停显示法术名与实时冷却。同时修复通天峰传送显示未学会、传送广播重复
+  发送、英文客户端广播模板仍为中文等问题,并更新午夜第二赛季副本数据。
+
 ## v1.0.0
 
 - First public release. Ships the score overlay, weekly/season history panel,

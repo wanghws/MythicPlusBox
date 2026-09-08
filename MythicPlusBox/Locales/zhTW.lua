@@ -70,6 +70,7 @@ L["TELEPORT_UNKNOWN_COOLDOWN"] = "未知冷卻"
 L["TELEPORT_READY"]            = "已就緒"
 L["TELEPORT_NOT_LEARNED"]      = "未學會"
 L["TELEPORT_UNKNOWN_DUNGEON"]  = "未知副本"
+L["TELEPORT_CLICK_HINT"]       = "點擊傳送"
 
 -- Keystone
 L["KEYSTONE_LIST_HEADER"]      = "隊伍鑰石"

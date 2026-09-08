@@ -82,6 +82,74 @@ local function CurrentFont()
     })
 end
 
+--- Tooltip header for a row overlay: the keystone's dungeon plus a hint that
+--- the row is clickable. Teleport spell name and cooldown are appended by
+--- ns:ShowTeleportTooltip.
+local function RowTooltipHeader(button)
+    local L = ns.L
+    GameTooltip:SetOwner(button, "ANCHOR_RIGHT")
+    GameTooltip:AddLine(ns:GetDungeonName(button:GetParent().mapID, false))
+    if button.spellKnown then
+        GameTooltip:AddLine(L["TELEPORT_CLICK_HINT"], 0.6, 0.6, 0.6)
+    end
+end
+
+-- The click-to-teleport overlay covers the whole row so the entire entry is a
+-- teleport target, not just its icon. Action buttons cannot be created while
+-- in combat, so creation is deferred to the next out-of-combat refresh
+-- (PLAYER_REGEN_ENABLED triggers one).
+local function EnsureTeleportButton(row)
+    if row.teleport then return row.teleport end
+    if InCombatLockdown() then return nil end
+
+    local button = CreateFrame("Button", nil, row, "InsecureActionButtonTemplate")
+    button:SetAllPoints(row)
+    button:SetFrameLevel(row:GetFrameLevel() + 2)
+
+    -- HIGHLIGHT-layer textures are shown by the frame itself on mouseover;
+    -- ADD blending keeps the row's text readable through the glow.
+    local hl = button:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints(button)
+    hl:SetColorTexture(1, 1, 1, 0.15)
+    hl:SetBlendMode("ADD")
+
+    button:SetScript("OnEnter", function(self)
+        ns:ShowTeleportTooltip(self, self.spellID, RowTooltipHeader)
+    end)
+    button:SetScript("OnLeave", function(self)
+        ns:HideTeleportTooltip(self)
+    end)
+
+    row.teleport = button
+    return button
+end
+
+local function UpdateRowTeleport(row, cfg)
+    -- Action attributes cannot be rewritten in combat: the overlay keeps
+    -- whatever it was armed with before the pull and re-syncs afterwards.
+    if InCombatLockdown() then return end
+
+    local spellID, known = ns:GetTeleportSpell(row.mapID)
+    -- An unlocked frame is being dragged, so the overlay must not swallow the
+    -- clicks that move it.
+    local usable = cfg.locked and spellID ~= nil
+    local button = usable and EnsureTeleportButton(row) or row.teleport
+    if not button then return end
+    if not usable then
+        button:Hide()
+        return
+    end
+
+    button.spellID    = spellID
+    button.spellKnown = known
+    -- Match the user's cast-on-key-down cvar: registering both edges fires the
+    -- cast twice, which restarts it and makes the teleport announce double up.
+    button:RegisterForClicks(GetCVarBool("ActionButtonUseKeyDown") and "AnyDown" or "AnyUp")
+    button:SetAttribute("type",  known and "spell" or nil)
+    button:SetAttribute("spell", known and spellID or nil)
+    button:Show()
+end
+
 local function GetRow(index)
     if M.rows[index] then return M.rows[index] end
     local row = CreateFrame("Frame", nil, M.frame)
@@ -238,6 +306,9 @@ local function LayoutRows()
         row.holder:SetText(string.format("|cff%02x%02x%02x%s|r",
             c.r * 255, c.g * 255, c.b * 255,
             Ambiguate(entry.unitName or "?", "short")))
+
+        row.mapID = entry.challengeMapID
+        UpdateRowTeleport(row, cfg)
     end
 
     HideExtraRows(#list + 1)
@@ -294,6 +365,10 @@ function M:OnPlayerLogin()
     f:RegisterEvent("CHALLENGE_MODE_START")
     f:RegisterEvent("CHALLENGE_MODE_COMPLETED")
     f:RegisterEvent("CHALLENGE_MODE_RESET")
+    -- Teleport overlays cannot be created or re-armed during combat; refresh
+    -- once the lockdown lifts so they come back without waiting on a roster
+    -- or bag event.
+    f:RegisterEvent("PLAYER_REGEN_ENABLED")
     f:SetScript("OnEvent", function(_, event)
         if event == "CHALLENGE_MODE_START" then
             M.inActiveRun = true

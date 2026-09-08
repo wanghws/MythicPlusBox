@@ -16,7 +16,9 @@ localisation.
   button. Optionally announces the cast to party or instance chat with a fully
   editable template (`{spell}`, `{dungeon}` placeholders).
 - **Party keystone list** — a movable panel on the left of the screen showing
-  every party member's keystone (level, dungeon abbreviation).
+  every party member's keystone (level, dungeon abbreviation). Click any row to
+  cast that dungeon's teleport; the tooltip shows the spell and its remaining
+  cooldown.
 - **In-dungeon center banner** — the moment a Mythic+ run starts, a short
   banner in the middle of the screen announces the key holder + dungeon +
   level, then fades out.
@@ -58,7 +60,8 @@ Extract the `MythicPlusBox` folder into
 - **副本传送按钮** — 每个副本图标变成安全传送按钮。可选择向队伍/团队广播
   施放的传送法术,广播模板可自定义(`{spell}`、`{dungeon}` 占位符)。
 - **队伍钥石列表** — 屏幕左侧可移动的面板,显示队伍中每位成员的钥石(层数、
-  副本缩写)。
+  副本缩写)。点击任意条目即可施放该副本的传送法术,悬停可查看法术名与剩余
+  冷却。
 - **副本内中央横幅** — 大秘境副本开启时,屏幕中央出现短暂横幅,显示钥石
   持有人、副本、层数,随后自动淡出。
 - **完整多语言** — 英文、简体中文、繁体中文。副本名可切换缩略/全名显示。

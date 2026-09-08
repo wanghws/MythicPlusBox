@@ -76,6 +76,7 @@ L["TELEPORT_UNKNOWN_COOLDOWN"] = "Unknown cooldown"
 L["TELEPORT_READY"]            = "Ready"
 L["TELEPORT_NOT_LEARNED"]      = "Not learned"
 L["TELEPORT_UNKNOWN_DUNGEON"]  = "Unknown dungeon"
+L["TELEPORT_CLICK_HINT"]       = "Click to teleport"
 
 -- ============================================================================
 -- Keystone

@@ -60,6 +60,20 @@ ns.DungeonTeleport = {
 }
 
 -- ============================================================================
+-- Teleport-spell lookup: first learned spell wins, otherwise the first entry
+-- so callers can still render a "not learned" tooltip instead of nothing.
+-- Second return value tells the two cases apart.
+-- ============================================================================
+function ns:GetTeleportSpell(mapID)
+    local spellIDs = mapID and mapID ~= 0 and self.DungeonTeleport[mapID]
+    if not spellIDs then return nil, false end
+    for _, spellID in ipairs(spellIDs) do
+        if IsSpellKnown(spellID) then return spellID, true end
+    end
+    return spellIDs[1], false
+end
+
+-- ============================================================================
 -- Score-color tiers (used by Score overlay)
 -- ============================================================================
 ns.ScoreColorRanges = {
