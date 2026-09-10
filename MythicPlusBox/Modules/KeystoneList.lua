@@ -94,16 +94,18 @@ local function RowTooltipHeader(button)
     end
 end
 
--- The click-to-teleport overlay covers the whole row so the entire entry is a
--- teleport target, not just its icon. Action buttons cannot be created while
--- in combat, so creation is deferred to the next out-of-combat refresh
+-- The click-to-teleport overlay covers only the dungeon icon, leaving the
+-- text half of the row free for clicks that pass through to whatever is
+-- behind the list. Action buttons cannot be created while in combat, so
+-- creation is deferred to the next out-of-combat refresh
 -- (PLAYER_REGEN_ENABLED triggers one).
 local function EnsureTeleportButton(row)
     if row.teleport then return row.teleport end
     if InCombatLockdown() then return nil end
 
     local button = CreateFrame("Button", nil, row, "InsecureActionButtonTemplate")
-    button:SetAllPoints(row)
+    button:SetPoint("TOPLEFT",     row.icon, "TOPLEFT",     0, 0)
+    button:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT", 0, 0)
     button:SetFrameLevel(row:GetFrameLevel() + 2)
 
     -- HIGHLIGHT-layer textures are shown by the frame itself on mouseover;
