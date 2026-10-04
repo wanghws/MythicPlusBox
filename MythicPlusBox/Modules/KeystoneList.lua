@@ -7,6 +7,8 @@ local REFRESH_INTERVAL = 3.0
 local ICON_SIZE        = 42
 local ICON_TEXT_GAP    = 8
 local FALLBACK_ICON    = [[Interface\Icons\INV_Misc_Key_14]]
+local BORDER_SIZE      = 1
+local HIGHLIGHT_SIZE   = 2
 
 M.rows = {}
 
@@ -162,10 +164,8 @@ local function GetRow(index)
     row.icon:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
+    -- Solid fill behind the opaque icon: only the outer edge shows, as a frame.
     row.iconBorder = row:CreateTexture(nil, "BORDER")
-    row.iconBorder:SetColorTexture(0, 0, 0, 0.6)
-    row.iconBorder:SetPoint("TOPLEFT",     row.icon, "TOPLEFT",     -1, 1)
-    row.iconBorder:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT",  1, -1)
 
     row.level = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     row.level:SetPoint("CENTER", row.icon, "CENTER", 0, 0)
@@ -186,6 +186,24 @@ local function GetRow(index)
 
     M.rows[index] = row
     return row
+end
+
+--- Keystones for the dungeon the group is listed for get a thicker gold frame;
+--- every other row keeps the thin dark one.
+local function SetIconBorder(row, highlighted)
+    if row.highlighted == highlighted then return end
+    row.highlighted = highlighted
+    local size = highlighted and HIGHLIGHT_SIZE or BORDER_SIZE
+    local border = row.iconBorder
+    border:ClearAllPoints()
+    border:SetPoint("TOPLEFT",     row.icon, "TOPLEFT",     -size,  size)
+    border:SetPoint("BOTTOMRIGHT", row.icon, "BOTTOMRIGHT",  size, -size)
+    if highlighted then
+        border:SetColorTexture(1, 0.82, 0, 1)
+    else
+        border:SetColorTexture(0, 0, 0, 0.6)
+    end
+    border:Show()
 end
 
 local function HideExtraRows(fromIndex)
@@ -265,6 +283,61 @@ local function DungeonIconTexture(mapID)
     return FALLBACK_ICON
 end
 
+-- ============================================================================
+-- Group Finder listing tracking
+--
+-- ns.db.char.listingChallengeMapID holds the dungeon of the group's Mythic+
+-- listing; party rows holding a keystone for it get a highlighted icon border.
+-- Group Finder never exposes the listing's keystone level (it only lives in
+-- the protected group title), so rows are matched on dungeon alone. The value
+-- sits in per-character SavedVariables so a /reload inside the group keeps a
+-- listing that has already been delisted.
+-- ============================================================================
+
+--- Challenge mapID of a Mythic+ Group Finder activity; nil for any other
+--- activity, so relisting the group for something else drops the highlight.
+--- Activities only carry an instance mapID, which is matched against the
+--- current season's keystone dungeons.
+local function ChallengeMapIDForActivities(activityIDs)
+    local activityID = activityIDs and activityIDs[1]
+    if not activityID then return nil end
+    local split = ns.SplitDungeonActivities[activityID]
+    if split then return split end
+    local activity = C_LFGList.GetActivityInfoTable(activityID)
+    if not (activity and activity.isMythicPlusActivity) then return nil end
+    for _, challengeMapID in ipairs(C_ChallengeMode.GetMapTable() or {}) do
+        local _, _, _, _, _, mapID = C_ChallengeMode.GetMapUIInfo(challengeMapID)
+        if mapID == activity.mapID then return challengeMapID end
+    end
+    return nil
+end
+
+local function SetListing(challengeMapID)
+    ns.db.char.listingChallengeMapID = challengeMapID
+end
+
+--- The group's own listing is authoritative while it exists; members see it
+--- too, not only the leader. Once delisted the last dungeon is kept while
+--- grouped, because groups usually delist once full — exactly when the
+--- highlight is wanted. Outside a group nothing is kept: that covers leaving
+--- the group as well as a solo listing cancelled before anyone joined.
+local function ReconcileListing()
+    if C_LFGList.HasActiveEntryInfo() then
+        local entry = C_LFGList.GetActiveEntryInfo()
+        SetListing(entry and ChallengeMapIDForActivities(entry.activityIDs))
+    elseif not IsInGroup(LE_PARTY_CATEGORY_HOME) then
+        SetListing(nil)
+    end
+end
+
+local function CaptureJoinedListing(searchResultID)
+    -- Search results turn secret during chat messaging lockdown, and a
+    -- secret activityID cannot be passed back into the API.
+    if C_ChatInfo.InChatMessagingLockdown and C_ChatInfo.InChatMessagingLockdown() then return end
+    local result = C_LFGList.GetSearchResultInfo(searchResultID)
+    SetListing(result and ChallengeMapIDForActivities(result.activityIDs))
+end
+
 local function LayoutRows()
     local L = ns.L
     local cfg = ns.db.profile.keystoneList
@@ -272,6 +345,7 @@ local function LayoutRows()
     local useAbbr = ns.db.profile.score and ns.db.profile.score.useAbbreviation
 
     local list = CollectPartyKeystones()
+    local listing = ns.db.char.listingChallengeMapID
     local rowH  = ICON_SIZE
     local gap   = math.max(cfg.rowSpacing or 4, 4)
     local pad   = 8
@@ -290,7 +364,7 @@ local function LayoutRows()
         row:Show()
 
         row.icon:SetTexture(DungeonIconTexture(entry.challengeMapID))
-        row.iconBorder:Show()
+        SetIconBorder(row, entry.level > 0 and entry.challengeMapID == listing)
 
         row.level:SetFont(path, levelSize, "THICKOUTLINE")
         row.dungeon:SetFont(path, size, outline)
@@ -371,17 +445,38 @@ function M:OnPlayerLogin()
     -- once the lockdown lifts so they come back without waiting on a roster
     -- or bag event.
     f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:SetScript("OnEvent", function(_, event)
+    -- Track which dungeon the group is listed for: the group's own listing
+    -- and the one we were accepted into.
+    f:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
+    f:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED")
+    f:SetScript("OnEvent", function(_, event, ...)
         if event == "CHALLENGE_MODE_START" then
             M.inActiveRun = true
+            -- The listed key is now in use; after the run, other members'
+            -- keys for that dungeon are no longer what the group came for.
+            SetListing(nil)
             M:Refresh()
         elseif event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
             M.inActiveRun = false
+            -- A mid-run relist (looking for a replacement) recaptures the
+            -- dungeon whose key was just used up.
+            SetListing(nil)
             M:Refresh()
+        elseif event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then
+            ReconcileListing()
+            M:Refresh()
+        elseif event == "LFG_LIST_APPLICATION_STATUS_UPDATED" then
+            local searchResultID, newStatus = ...
+            if newStatus == "inviteaccepted" then
+                CaptureJoinedListing(searchResultID)
+                M:Refresh()
+            end
         elseif event == "GROUP_ROSTER_UPDATE" then
             -- Roster updates arrive in bursts while a group forms; debounce so
             -- one settled update sends a single keystone comm request instead
-            -- of one per event.
+            -- of one per event. The listing is reconciled on the settled
+            -- roster too, not on GROUP_LEFT: when a party joins a listed group
+            -- the old group's GROUP_LEFT may arrive after "inviteaccepted".
             if M._rosterPending then return end
             M._rosterPending = true
             C_Timer.After(1, function()
@@ -390,9 +485,21 @@ function M:OnPlayerLogin()
                 if l and l.RequestKeystoneDataFromParty then
                     l.RequestKeystoneDataFromParty()
                 end
+                ReconcileListing()
                 M:Refresh()
             end)
         elseif event == "PLAYER_ENTERING_WORLD" then
+            local isInitialLogin, isReloadingUi = ...
+            if isInitialLogin then
+                -- Only a reload is sure to keep the group; the player may have
+                -- been removed from it while offline.
+                SetListing(nil)
+            end
+            -- Group state may not be settled yet, so only a live listing is
+            -- trusted here; the next roster update reconciles the rest.
+            if (isInitialLogin or isReloadingUi) and C_LFGList.HasActiveEntryInfo() then
+                ReconcileListing()
+            end
             local _, instanceType = GetInstanceInfo()
             local activeLevel = C_ChallengeMode and C_ChallengeMode.GetActiveKeystoneInfo
                                 and C_ChallengeMode.GetActiveKeystoneInfo() or 0

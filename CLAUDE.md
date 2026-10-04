@@ -64,6 +64,10 @@ in `Data/Seasons.lua`.
 
 - Only one SavedVariable: `MythicPlusBoxDB` (declared in the `.toc`).
 - Access via `ns.db.profile.<field>` and `ns.db.global.<field>`.
+- `ns.db.char.<field>` holds per-character runtime state that must survive a
+  `/reload` but is not a setting (e.g. the keystone list's
+  `listingChallengeMapID`). It has no defaults and never appears in the
+  options panel.
 - Defaults live in `Config.lua`'s `defaults` table — change them there, not
   inline in modules.
 - After changing anything at runtime, call `ns:RefreshAll()` to give every

@@ -74,6 +74,18 @@ function ns:GetTeleportSpell(mapID)
 end
 
 -- ============================================================================
+-- Group Finder activities of split dungeons (activityID -> challenge mapID).
+-- Both halves share one instance mapID, so an activity's mapID alone cannot
+-- tell which keystone it is for. IDs from the GroupFinderActivity DB2 table.
+-- ============================================================================
+ns.SplitDungeonActivities = {
+    [471]  = 227, [473]  = 234,   -- Return to Karazhan: Lower / Upper
+    [679]  = 369, [683]  = 370,   -- Operation: Mechagon: Junkyard / Workshop
+    [1016] = 391, [1017] = 392,   -- Tazavesh: Streets of Wonder / So'leah's Gambit
+    [1247] = 463, [1248] = 464,   -- Dawn of the Infinite: Galakrond's Fall / Murozond's Rise
+}
+
+-- ============================================================================
 -- Score-color tiers (used by Score overlay)
 -- ============================================================================
 ns.ScoreColorRanges = {
