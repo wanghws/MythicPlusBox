@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.2.0
+
+- The weekly/season panel no longer counts runs from previous seasons, refreshes
+  as soon as the server reports a finished key, and lists dungeons from the
+  highest key level down. The keystone list's teleport click area is now
+  limited to the dungeon icon, so clicks on the text pass through.
+- 每周/赛季记录面板不再计入往季的次数,完成大秘境后会随服务器数据及时刷新,
+  地下城记录按层数从高到低排序。队伍钥石列表的传送点击区域缩小至副本图标,
+  点击文字区域可穿透至列表后方。
+
 ## v1.1.0
 
 - Party keystone list rows are now click-to-teleport: clicking a row casts that
