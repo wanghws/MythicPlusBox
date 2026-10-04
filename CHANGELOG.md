@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.0
+
+- After you list or join a Mythic+ group in the Group Finder, the party
+  keystone list gives every keystone for the listed dungeon a gold icon border,
+  so you can see at a glance whose key the group is running. Addons cannot
+  read the listing's key level, so only the dungeon is matched.
+- 在预创建队伍中发布或加入大秘境队伍后,队伍钥石列表会为持有该副本钥石的
+  成员显示金色图标边框,一眼看出本队要打的是谁的钥石。插件无法读取预组的
+  钥石层数,因此只按副本匹配。
+
 ## v1.2.0
 
 - The weekly/season panel no longer counts runs from previous seasons, refreshes
