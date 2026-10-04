@@ -4,45 +4,7 @@ This document orients Claude (and any human collaborator) to the codebase, the
 conventions it follows, and the workflows it expects. Keep it in sync with the
 code — if you change how things work, update this file in the same PR.
 
-## What the addon does
-
-MythicPlusBox is a Retail World of Warcraft addon that bundles four
-Mythic+-focused features into one shippable folder:
-
-1. **Score overlay** — writes dungeon name, best level and season score onto
-   each Blizzard dungeon icon (`ChallengesFrame.DungeonIcons`).
-2. **Weekly / season panel** — a small frame beside the Group Finder that shows
-   the current week's or full season's Mythic+ runs.
-3. **Teleport buttons + announce** — secure buttons overlayed on each dungeon
-   icon, plus an optional chat announcement when the teleport spell casts.
-4. **Party keystone tracker** — a left-side list of every party member's
-   keystone, and a center-of-screen banner when a run starts.
-
-All four are driven by a single AceDB profile and exposed through one
-AceGUI-based settings panel.
-
 ## Directory layout
-
-```
-MythicPlusBox/                         ← git repo root
-├── .gitignore                         zMPlus/ Stats/ Details/ MPBox-v*.zip
-├── README.md
-├── CHANGELOG.md
-├── CLAUDE.md                          ← you are here
-├── release.sh                         bash script → MPBox-v<VER>.zip
-├── .claude/commands/release.md        Claude command that drives releases
-├── zMPlus/  Stats/  Details/          reference addons (git-ignored)
-└── MythicPlusBox/                     ← shippable addon folder
-    ├── MythicPlusBox.toc              file load order lives here
-    ├── Init.lua                       ns namespace, LSM font register, /mpb slash
-    ├── Config.lua                     AceDB defaults, InitializeDB()
-    ├── Locales/                       enUS.lua (default), zhCN.lua, zhTW.lua
-    ├── Data/Seasons.lua               current-season mapIDs + evergreen spell table
-    ├── Modules/                       Score, Weekly, Teleport, KeystoneList, CenterBanner
-    ├── Options.lua                    AceGUI TabGroup settings window
-    ├── Libs/                          Ace3 + LSM + LibDBIcon + LibOpenRaid
-    └── Media/font.ttf, icon.tga
-```
 
 The **outer** `MythicPlusBox/` is the git repository. The **inner**
 `MythicPlusBox/MythicPlusBox/` is the addon folder that ships. `release.sh`
@@ -139,24 +101,10 @@ that flips both `.locked` fields at once.
 - Do **not** write "added for X" / "fixed in Y" / "see issue Z" in source
   comments — that belongs in the commit/PR.
 
-## Slash commands
-
-`/mpb` and `/mpbox` are the two aliases. `/mpb` alone opens the settings
-window. Sub-commands: `unlock`, `lock`, `reset`.
-
 ## Release workflow
 
-Releases are cut through the Claude slash command at
-`.claude/commands/release.md`. In short:
-
-1. Read version from `MythicPlusBox/MythicPlusBox.toc`.
-2. Summarise `git log <last-tag>..HEAD` into `CHANGELOG.md` as one bilingual
-   (EN + zhCN) entry under a new `## v<VER>` heading.
-3. `bash release.sh` produces `MPBox-v<VER>.zip` at repo root.
-4. `git add CHANGELOG.md release.sh MythicPlusBox/`, commit as
-   `release: v<VER>`, then `git tag v<VER>`. Do **not** push automatically.
-5. Bump `## Version:` in `MythicPlusBox/MythicPlusBox.toc` to the next minor,
-   commit as `chore: bump version to <VER+1>`.
+Releases are cut through the `/release` command
+(`.claude/commands/release.md`). Do **not** push automatically.
 
 Nothing uploads to CurseForge/WoWInterface — those are manual uploads of the
 generated zip.
