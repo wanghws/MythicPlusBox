@@ -19,6 +19,13 @@ local function DungeonName(mapID)
     return ns:GetDungeonName(mapID, ns.db.profile.score and ns.db.profile.score.useAbbreviation)
 end
 
+--- Highest key first; on equal level, timed runs before depleted ones.
+local function ByLevelDesc(a, b)
+    if a.level ~= b.level then return a.level > b.level end
+    if a.completed ~= b.completed then return a.completed end
+    return a.mapChallengeModeID < b.mapChallengeModeID
+end
+
 local function LevelColor(level)
     local colors = ns.db.profile.colors.levelColors
     local add = level >= 15 and 1 or 0
@@ -88,9 +95,15 @@ local function EnsureFrame()
     f:SetPoint(a.point, relTo, a.relativePoint, a.x, a.y)
     if not PVEFrame:IsShown() then f:Hide() end
     -- Read config through ns.db at call time: a captured `weekly` table goes
-    -- stale after a profile switch (AceDB swaps the profile table).
+    -- stale after a profile switch (AceDB swaps the profile table). The cached
+    -- history renders immediately; the fresh copy requested here redraws via
+    -- CHALLENGE_MODE_MAPS_UPDATE once the server answers.
     PVEFrame:HookScript("OnShow", function()
-        if ns.db.profile.weekly.enabled then f:Show(); M:Update() end
+        if ns.db.profile.weekly.enabled then
+            f:Show()
+            M:Update()
+            C_MythicPlus.RequestMapInfo()
+        end
     end)
     PVEFrame:HookScript("OnHide", function() f:Hide() end)
     M.frame = f
@@ -109,7 +122,14 @@ local function BuildDungeonStatsRows(runHistory, startIndex)
         end
         table.insert(byDungeon[id].runs, run)
     end
-    table.sort(order)
+    for _, d in pairs(byDungeon) do table.sort(d.runs, ByLevelDesc) end
+    -- Rank dungeons by their highest run; ties go to the more-run dungeon.
+    table.sort(order, function(a, b)
+        local ra, rb = byDungeon[a].runs, byDungeon[b].runs
+        if ra[1].level ~= rb[1].level then return ra[1].level > rb[1].level end
+        if #ra ~= #rb then return #ra > #rb end
+        return a < b
+    end)
 
     index = EmitRow(index, ColorClass(L["COMPLETION_COUNT_LABEL"]) .. "|cffff8f00" .. #runHistory .. "|r", 10)
 
@@ -132,10 +152,7 @@ local function BuildWeeklyRows(runHistory)
         EmitRow(1, L["NO_WEEKLY_RECORD"])
         return
     end
-    table.sort(runHistory, function(a, b)
-        if a.level == b.level then return a.mapChallengeModeID < b.mapChallengeModeID end
-        return a.level > b.level
-    end)
+    table.sort(runHistory, ByLevelDesc)
     local index = 1
     index = EmitRow(index, ColorClass(L["WEEKLY_BEST_HEADER"]))
     for i, run in ipairs(runHistory) do
@@ -168,10 +185,7 @@ local function BuildSeasonRows(runHistory)
     end
     local bestList = {}
     for _, run in pairs(bestByDungeon) do table.insert(bestList, run) end
-    table.sort(bestList, function(a, b)
-        if a.level == b.level then return a.mapChallengeModeID < b.mapChallengeModeID end
-        return a.level > b.level
-    end)
+    table.sort(bestList, ByLevelDesc)
     local index = 1
     index = EmitRow(index, ColorClass(L["SEASON_RECORD_HEADER"]))
     for i, run in ipairs(bestList) do
@@ -202,29 +216,35 @@ function M:Update()
     f:ClearAllPoints()
     f:SetPoint(a.point, relTo, a.relativePoint, a.x, a.y)
 
+    -- currentSeasonOnly (3rd arg) defaults to false: without it the history
+    -- also carries every previous season's runs.
     if showSeasonData then
-        BuildSeasonRows(C_MythicPlus.GetRunHistory(true, true) or {})
+        BuildSeasonRows(C_MythicPlus.GetRunHistory(true, true, true) or {})
     else
-        BuildWeeklyRows(C_MythicPlus.GetRunHistory(false, true) or {})
+        BuildWeeklyRows(C_MythicPlus.GetRunHistory(false, true, true) or {})
     end
 end
 
+--- GetRunHistory only reads the client-side cache, which the server refreshes
+--- in response to RequestMapInfo and announces via CHALLENGE_MODE_MAPS_UPDATE.
+--- So a finished key shows up only after a request + that event, not on
+--- CHALLENGE_MODE_COMPLETED itself.
 function M:OnPlayerLogin()
+    EnsureFrame()
     local f = CreateFrame("Frame")
-    f:RegisterEvent("PLAYER_ENTERING_WORLD")
     f:RegisterEvent("CHALLENGE_MODE_COMPLETED")
+    f:RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE")
+    f:RegisterEvent("WEEKLY_REWARDS_UPDATE")
     f:RegisterEvent("MODIFIER_STATE_CHANGED")
     f:SetScript("OnEvent", function(_, event)
-        if event == "MODIFIER_STATE_CHANGED" then
-            local w = ns.db.profile.weekly
-            if w.enabled and w.useModifierKey and PVEFrame and PVEFrame:IsShown() then
-                M:Update()
-            end
-        else
-            C_Timer.After(1, function() M:Update() end)
+        if event == "CHALLENGE_MODE_COMPLETED" then
+            C_MythicPlus.RequestMapInfo()
+            return
         end
+        if event == "MODIFIER_STATE_CHANGED" and not ns.db.profile.weekly.useModifierKey then return end
+        if M.frame and M.frame:IsShown() then M:Update() end
     end)
-    C_Timer.After(2, function() M:Update() end)
+    C_MythicPlus.RequestMapInfo()
 end
 
 function M:Refresh()
